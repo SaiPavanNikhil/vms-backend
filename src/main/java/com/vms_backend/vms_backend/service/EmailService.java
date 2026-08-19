@@ -560,25 +560,17 @@
 
 package com.vms_backend.vms_backend.service;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-
 @Service
 public class EmailService {
 
     private final JavaMailSender mailSender;
-    
-    @Autowired
-    private EncryptionService encryptionService;
 
     @Value("${spring.mail.username}")
     private String fromAddress;
@@ -629,21 +621,14 @@ public class EmailService {
         String date,
         String time,
         String hostId,
-        String mobileNo) throws Exception {
+        String mobileNo) {
 
-        // Create payload
-    String payload = "hostId=" + hostId + "&mobileNo=" + mobileNo;
-    
-    String encryptedData = encryptionService.encrypt(payload);
-    
-   /// String actionUrl = frontendUrl + "/HostApproval?hostId="+ hostId + "&mobileNo="+ mobileNo;
-    
-    String actionUrl = frontendUrl
-            + "/HostApproval?token="
-            + URLEncoder.encode(
-                    encryptedData,
-                    StandardCharsets.UTF_8
-            );
+    String actionUrl =
+            frontendUrl
+                    + "/HostApproval?hostId="
+                    + hostId
+                    + "&mobileNo="
+                    + mobileNo;
 
     String html = buildHostApprovalHtml(
             hostName,

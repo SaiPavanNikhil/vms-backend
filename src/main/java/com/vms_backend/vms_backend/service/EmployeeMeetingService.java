@@ -27,7 +27,8 @@ public class EmployeeMeetingService {
     
     private final EmployeeMeetingParticipantRepository participantRepository;
 
-    private final EmailService emailService;
+//    private final EmailService emailService;
+    private final ResendEmailService resendEmailService;
 
 
     @Transactional
@@ -229,7 +230,7 @@ public class EmployeeMeetingService {
                     + ".";
 
 
-            emailService.sendMeetingStatusEmail(
+            resendEmailService.sendMeetingStatusEmail(
 
                     // To
                     participantDTO.getEmail(),
@@ -300,7 +301,7 @@ public class EmployeeMeetingService {
                     : participant.getParticipantName() + " has rejected the meeting \""
                         + participant.getMeeting().getMeetingTitle() + "\".";
 
-            emailService.sendMeetingStatusEmail(
+            resendEmailService.sendMeetingStatusEmail(
                     organizer.getEmailId(),
                     organizer.getFirstName(),
                     participant.getParticipantName(),

@@ -31,7 +31,8 @@ public class VisitorMeetingService {
     private final VisitorMeetingRepository meetingRepo;
     private final VisitorRepository visitorRepo;
     private final EmployeeRepository employeeRepo;
-    private final EmailService emailService;
+//    private final EmailService emailService;
+    private final ResendEmailService resendEmailService;
     
     @Autowired
     private EncryptionService encryptionService;
@@ -42,11 +43,11 @@ public class VisitorMeetingService {
     public VisitorMeetingService(VisitorMeetingRepository meetingRepo,
                                   VisitorRepository visitorRepo,
                                   EmployeeRepository employeeRepo,
-                                  EmailService emailService) {
+                                  ResendEmailService resendEmailService) {
         this.meetingRepo = meetingRepo;
         this.visitorRepo = visitorRepo;
         this.employeeRepo = employeeRepo;
-        this.emailService = emailService;
+        this.resendEmailService = resendEmailService;
     }
 
     @Transactional
@@ -339,7 +340,7 @@ public class VisitorMeetingService {
         String registeredDate =
                 String.valueOf(m.getRequestedMeetingDate());
 
-        emailService.sendHostApprovalEmail(
+        resendEmailService.sendHostApprovalEmail(
                 host.getEmailId(),
                 visitorName,
                 hostName,
@@ -400,7 +401,7 @@ public class VisitorMeetingService {
                             : ""))
                     .trim();
 
-    emailService.sendHostApprovedEmail(
+    resendEmailService.sendHostApprovedEmail(
             host.getEmailId(),
             visitorName,
             hostName,
@@ -430,7 +431,7 @@ public class VisitorMeetingService {
                 .map(e -> (e.getFirstName() + " " + (e.getLastName() != null ? e.getLastName() : "")).trim())
                 .orElse("your host");
 
-        emailService.sendVisitorStatusEmail(
+        resendEmailService.sendVisitorStatusEmail(
                 v.getEmail(), visitorName, hostName, statusLabel, statusColor,
                 String.valueOf(m.getApprovedMeetingDate() != null ? m.getApprovedMeetingDate() : m.getRequestedMeetingDate()),
                 String.valueOf(m.getApprovedMeetingTime() != null ? m.getApprovedMeetingTime() : m.getRequestedMeetingTime()),
