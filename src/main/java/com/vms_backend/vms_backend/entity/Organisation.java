@@ -38,4 +38,10 @@ public class Organisation {
 
     @Column(name = "pincode", length = 6)
     private String pincode;
+    
+    @Column(name = "organization_email", length = 100)
+    private String organizationEmail;
+
+    @Column(name = "password", length = 255)
+    private String password;
 }

@@ -35,10 +35,14 @@ public class Visitors {
     @Column(name = "photo", length = 255)
     private String photo;
 
+    @Column(name = "designation", length = 30)
+    private String designation;
+
     @Column(name = "registrationdate", nullable = false)
     private LocalDate registrationDate;
 
-    @Column(name = "mode_of_visit", length = 10, nullable = false)
+    
+	@Column(name = "mode_of_visit", length = 10, nullable = false)
     private String modeOfVisit;
     @Column(name = "purpose_of_visit", length = 30, nullable = false)
     private String purposeOfVisit;
@@ -67,4 +71,10 @@ public class Visitors {
     public void setModeOfVisit(String modeOfVisit) { this.modeOfVisit = modeOfVisit; }
     public String getPurposeOfVisit() { return purposeOfVisit; }
     public void setPurposeOfVisit(String purposeOfVisit) { this.purposeOfVisit = purposeOfVisit; }
+    public String getDesignation() {
+		return designation;
+	}
+	public void setDesignation(String designation) {
+		this.designation = designation;
+	}
 }

@@ -1,5 +1,7 @@
 package com.vms_backend.vms_backend.service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -8,6 +10,8 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +24,6 @@ import com.vms_backend.vms_backend.entity.Visitors;
 import com.vms_backend.vms_backend.repository.EmployeeRepository;
 import com.vms_backend.vms_backend.repository.VisitorMeetingRepository;
 import com.vms_backend.vms_backend.repository.VisitorRepository;
-import com.vms_backend.vms_backend.util.TokenUtil;
 
 @Service
 public class VisitorMeetingService {
@@ -29,6 +32,12 @@ public class VisitorMeetingService {
     private final VisitorRepository visitorRepo;
     private final EmployeeRepository employeeRepo;
     private final EmailService emailService;
+    
+    @Autowired
+    private EncryptionService encryptionService;
+    
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
     public VisitorMeetingService(VisitorMeetingRepository meetingRepo,
                                   VisitorRepository visitorRepo,
@@ -41,7 +50,7 @@ public class VisitorMeetingService {
     }
 
     @Transactional
-    public VisitorMeeting createRequest(VisitorMeetingRequest req) {
+    public VisitorMeeting createRequest(VisitorMeetingRequest req) throws Exception {
         VisitorMeeting m = new VisitorMeeting();
         m.setMobileNo(req.getMobileNo());
         m.setHostId(req.getHostId());
@@ -179,10 +188,28 @@ public class VisitorMeetingService {
         // =====================================================
         // VISITOR PASS LINK
         // =====================================================
+        
+        String payload = saved.getMeetingId().toString();
+        String encryptedToken;
 
+        try {
+            encryptedToken = encryptionService.encrypt(payload);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to encrypt visitor pass token", e);
+        }
+
+//
+//        String passLink =
+//        		frontendUrl+"/visitor-pass/"
+//                + saved.getMeetingId();
+        
         String passLink =
-                "http://localhost:4200/visitor-pass/"
-                + saved.getMeetingId();
+                frontendUrl
+                + "/visitor-pass"
+                + URLEncoder.encode(
+                        encryptedToken,
+                        StandardCharsets.UTF_8
+                );
 
 
         // =====================================================
@@ -220,8 +247,8 @@ public class VisitorMeetingService {
                         + "Please arrive on time and carry a valid ID for verification.",
                 passLink
         );
-
-
+        
+        notifyHostApproved(saved, passLink);
 
         return saved;
     }
@@ -265,35 +292,124 @@ public class VisitorMeetingService {
     // email with an encoded token embedding hostId+mobileNo. Logs (instead of silently
     // skipping) when the host or visitor record can't be found, or has no email on file —
     // this makes a "why isn't the email sending" case show up in the console.
-    private void notifyHost(VisitorMeeting m) {
+    
+    private void notifyHost(VisitorMeeting m) throws Exception {
+
         Employee host = employeeRepo.findById(m.getHostId()).orElse(null);
+
         if (host == null) {
-            System.err.println("notifyHost: no Employee found for hostId=" + m.getHostId());
+            System.err.println(
+                    "notifyHost: no Employee found for hostId=" + m.getHostId()
+            );
             return;
         }
+
         if (host.getEmailId() == null || host.getEmailId().isBlank()) {
-            System.err.println("notifyHost: host " + m.getHostId() + " has no emailId on file");
+            System.err.println(
+                    "notifyHost: host " + m.getHostId()
+                            + " has no emailId on file"
+            );
             return;
         }
 
         Visitors v = visitorRepo.findById(m.getMobileNo()).orElse(null);
+
         if (v == null) {
-            System.err.println("notifyHost: no Visitors row found for mobileNo=" + m.getMobileNo()
-                    + " — the visitor insert may have failed (check for DataIntegrityViolationException)");
+            System.err.println(
+                    "notifyHost: no Visitors row found for mobileNo="
+                            + m.getMobileNo()
+            );
             return;
         }
 
-        String visitorName = (v.getFirstName() + " " + (v.getLastName() != null ? v.getLastName() : "")).trim();
-        String hostName = (host.getFirstName() + " " + (host.getLastName() != null ? host.getLastName() : "")).trim();
-        String registeredDate = String.valueOf(m.getRequestedMeetingDate());
+        String visitorName =
+                (v.getFirstName() + " "
+                        + (v.getLastName() != null
+                                ? v.getLastName()
+                                : ""))
+                        .trim();
+
+        String hostName =
+                (host.getFirstName() + " "
+                        + (host.getLastName() != null
+                                ? host.getLastName()
+                                : ""))
+                        .trim();
+
+        String registeredDate =
+                String.valueOf(m.getRequestedMeetingDate());
 
         emailService.sendHostApprovalEmail(
-                host.getEmailId(), visitorName, hostName, registeredDate,
+                host.getEmailId(),
+                visitorName,
+                hostName,
+                registeredDate,
                 String.valueOf(m.getRequestedMeetingDate()),
                 String.valueOf(m.getRequestedMeetingTime()),
-                m.getHostId(), m.getMobileNo()
+                m.getHostId(),
+                m.getMobileNo()
         );
     }
+    
+    private void notifyHostApproved(
+        VisitorMeeting m,
+        String passLink) {
+
+    Employee host =
+            employeeRepo.findById(m.getHostId()).orElse(null);
+
+    if (host == null) {
+        System.err.println(
+                "notifyHostApproved: no Employee found for hostId="
+                        + m.getHostId()
+        );
+        return;
+    }
+
+    if (host.getEmailId() == null || host.getEmailId().isBlank()) {
+        System.err.println(
+                "notifyHostApproved: host "
+                        + m.getHostId()
+                        + " has no emailId on file"
+        );
+        return;
+    }
+
+    Visitors v =
+            visitorRepo.findById(m.getMobileNo()).orElse(null);
+
+    if (v == null) {
+        System.err.println(
+                "notifyHostApproved: no Visitors row found for mobileNo="
+                        + m.getMobileNo()
+        );
+        return;
+    }
+
+    String visitorName =
+            (v.getFirstName() + " "
+                    + (v.getLastName() != null
+                            ? v.getLastName()
+                            : ""))
+                    .trim();
+
+    String hostName =
+            (host.getFirstName() + " "
+                    + (host.getLastName() != null
+                            ? host.getLastName()
+                            : ""))
+                    .trim();
+
+    emailService.sendHostApprovedEmail(
+            host.getEmailId(),
+            visitorName,
+            hostName,
+            String.valueOf(m.getApprovedMeetingDate()),
+            String.valueOf(m.getApprovedMeetingTime()),
+            m.getPassNo(),
+            passLink
+    );
+}
 
     // Looks up the visitor's email and host name, then sends the styled card notification.
     // Logs (instead of silently skipping) when the visitor record can't be found, or has

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.vms_backend.vms_backend.dto.VisitorPassResponse;
 import com.vms_backend.vms_backend.entity.Visitors;
 import com.vms_backend.vms_backend.repository.VisitorRepository;
+import com.vms_backend.vms_backend.service.EncryptionService;
 import com.vms_backend.vms_backend.service.VisitorPassService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,8 @@ public class VisitorPassController {
     private final VisitorPassService visitorPassService;
 
     private final VisitorRepository visitorRepository;
+    
+    private final EncryptionService encryptionService;
    /*  =========================================================
      GET VISITOR PASS
     ========================================================= */
@@ -169,6 +172,35 @@ public class VisitorPassController {
                                     "message",
                                     "Unable to load visitor photo"
                             )
+                    );
+        }
+    }
+    
+    @GetMapping("/decrypt/{token}")
+    public ResponseEntity<?> decryptToken(
+            @PathVariable String token) {
+
+        try {
+
+            String decrypted =
+                    encryptionService.decrypt(token);
+
+            Integer meetingId =
+                    Integer.valueOf(decrypted);
+
+            return ResponseEntity.ok(
+                    Map.of("meetingId", meetingId)
+            );
+
+        } catch (Exception e) {
+
+            return ResponseEntity
+                    .badRequest()
+                    .body(
+                        Map.of(
+                            "message",
+                            "Invalid visitor pass token"
+                        )
                     );
         }
     }

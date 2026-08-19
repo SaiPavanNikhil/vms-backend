@@ -2,6 +2,7 @@ package com.vms_backend.vms_backend.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,6 +10,7 @@ import com.vms_backend.vms_backend.dto.VisitorMeetingApprovalRequest;
 import com.vms_backend.vms_backend.dto.VisitorMeetingRequest;
 import com.vms_backend.vms_backend.dto.VisitorMeetingResponse;
 import com.vms_backend.vms_backend.entity.VisitorMeeting;
+import com.vms_backend.vms_backend.service.EncryptionService;
 import com.vms_backend.vms_backend.service.VisitorMeetingService;
 import com.vms_backend.vms_backend.util.TokenUtil;
 
@@ -17,6 +19,9 @@ import com.vms_backend.vms_backend.util.TokenUtil;
 public class VisitorMeetingController {
 
     private final VisitorMeetingService meetingService;
+    
+    @Autowired
+    private EncryptionService encryptionService;
 
     public VisitorMeetingController(VisitorMeetingService meetingService) {
         this.meetingService = meetingService;
@@ -24,7 +29,7 @@ public class VisitorMeetingController {
 
     // Called by the visitor form after a visitor is saved
     @PostMapping
-    public VisitorMeeting create(@RequestBody VisitorMeetingRequest req) {
+    public VisitorMeeting create(@RequestBody VisitorMeetingRequest req) throws Exception {
         return meetingService.createRequest(req);
     }
 
@@ -79,14 +84,44 @@ public class VisitorMeetingController {
     // The HostApproval page hits this first with the raw token from the email link,
     // gets back the meetingId + visitor/host details, then calls approve/reject/hold
     // above with that meetingId.
+//    @GetMapping("/resolve")
+//    public ResponseEntity<VisitorMeetingResponse> resolve(@RequestParam String token) {
+//        try {
+//            String[] parts = TokenUtil.decode(token); // [hostId, mobileNo]
+//            return meetingService.getLatestRequest(parts[0], parts[1])
+//                    .map(ResponseEntity::ok)
+//                    .orElseGet(() -> ResponseEntity.notFound().build());
+//        } catch (IllegalArgumentException e) {
+//            return ResponseEntity.badRequest().build();
+//        }
+//    }
+    
     @GetMapping("/resolve")
-    public ResponseEntity<VisitorMeetingResponse> resolve(@RequestParam String token) {
+    public ResponseEntity<VisitorMeetingResponse> resolve(
+            @RequestParam String token) {
+
         try {
-            String[] parts = TokenUtil.decode(token); // [hostId, mobileNo]
-            return meetingService.getLatestRequest(parts[0], parts[1])
+
+            // Decrypt token
+            String payload = encryptionService.decrypt(token);
+
+            // Example:
+            // payload = hostId=123&mobileNo=9876543210
+
+            String[] params = payload.split("&");
+
+            String hostId = params[0].split("=", 2)[1];
+            String mobileNo = params[1].split("=", 2)[1];
+
+            return meetingService
+                    .getLatestRequest(hostId, mobileNo)
                     .map(ResponseEntity::ok)
                     .orElseGet(() -> ResponseEntity.notFound().build());
-        } catch (IllegalArgumentException e) {
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
             return ResponseEntity.badRequest().build();
         }
     }

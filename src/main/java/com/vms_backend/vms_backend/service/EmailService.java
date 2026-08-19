@@ -560,17 +560,25 @@
 
 package com.vms_backend.vms_backend.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+
 @Service
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    
+    @Autowired
+    private EncryptionService encryptionService;
 
     @Value("${spring.mail.username}")
     private String fromAddress;
@@ -613,42 +621,112 @@ public class EmailService {
     }
 
     /** Convenience method: sends the HOST an approval request with a direct link. */
-    public void sendHostApprovalEmail(String hostEmail, String visitorName, String hostName,
-                                       String registeredDate, String date, String time,
-                                       String hostId, String mobileNo) {
-        String actionUrl = frontendUrl + "/HostApproval?hostId=" + hostId + "&mobileNo=" + mobileNo;
-        String html = buildHostApprovalHtml(hostName, visitorName, registeredDate, date, time, actionUrl);
+    public void sendHostApprovalEmail(
+        String hostEmail,
+        String visitorName,
+        String hostName,
+        String registeredDate,
+        String date,
+        String time,
+        String hostId,
+        String mobileNo) throws Exception {
 
-        try {
-            MimeMessage mime = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mime, false, "UTF-8");
-            helper.setFrom(fromAddress);
-            helper.setTo(hostEmail);
-            helper.setSubject("Meeting Request — Visitor Management");
-            helper.setText(html, true);
-            mailSender.send(mime);
-        } catch (MessagingException e) {
-            System.err.println("Failed to send host approval email to " + hostEmail + ": " + e.getMessage());
-        }
-    }
+        // Create payload
+    String payload = "hostId=" + hostId + "&mobileNo=" + mobileNo;
+    
+    String encryptedData = encryptionService.encrypt(payload);
+    
+   /// String actionUrl = frontendUrl + "/HostApproval?hostId="+ hostId + "&mobileNo="+ mobileNo;
+    
+    String actionUrl = frontendUrl
+            + "/HostApproval?token="
+            + URLEncoder.encode(
+                    encryptedData,
+                    StandardCharsets.UTF_8
+            );
 
-    private String buildHostApprovalHtml(String hostName, String visitorName, String registeredDate,
-                                          String date, String time, String actionUrl) {
-        return """
-            <!DOCTYPE html>
-            <html>
-            <body style="margin:0; padding:0; background-color:#f4f4f7; font-family:'Segoe UI', Arial, sans-serif;">
-              <p>Dear <b>%s</b>,</p>
-              <p>Mr./Ms. <b>%s</b>, who registered on <b>%s</b>, has requested a meeting with you on
-                 <b>%s at %s</b>.</p>
-              <p>Please click the link below to take the required action:</p>
-              <p><b>Approve / Postpone / Reject</b></p>
-              <p><a href="%s">%s</a></p>
-              <p>Regards,<br><b>Visitor Management System</b></p>
-            </body>
-            </html>
-            """.formatted(hostName, visitorName, registeredDate, date, time, actionUrl, actionUrl);
+    String html = buildHostApprovalHtml(
+            hostName,
+            visitorName,
+            registeredDate,
+            date,
+            time,
+            actionUrl
+    );
+
+    try {
+        MimeMessage mime = mailSender.createMimeMessage();
+
+        MimeMessageHelper helper =
+                new MimeMessageHelper(mime, false, "UTF-8");
+
+        helper.setFrom(fromAddress);
+        helper.setTo(hostEmail);
+        helper.setSubject("Meeting Request — Visitor Management");
+        helper.setText(html, true);
+
+        mailSender.send(mime);
+
+    } catch (MessagingException e) {
+        System.err.println(
+                "Failed to send host approval email to "
+                        + hostEmail
+                        + ": "
+                        + e.getMessage()
+        );
     }
+}
+
+    private String buildHostApprovalHtml(
+        String hostName,
+        String visitorName,
+        String registeredDate,
+        String date,
+        String time,
+        String actionUrl) {
+
+    return """
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0; padding:0; background-color:#f4f4f7; font-family:'Segoe UI', Arial, sans-serif;">
+
+          <p>Dear <b>%s</b>,</p>
+
+          <p>
+            Mr./Ms. <b>%s</b>, who registered on <b>%s</b>,
+            has requested a meeting with you on
+            <b>%s at %s</b>.
+          </p>
+
+          <p>
+            Please click the link below to take the required action:
+          </p>
+
+          <p>
+            <b>Approve / Postpone / Reject</b>
+          </p>
+
+          <p>
+            <a href="%s">%s</a>
+          </p>
+
+          <p>
+            Regards,<br>
+            <b>Visitor Management System</b>
+          </p>
+
+        </body>
+        </html>
+        """.formatted(
+            hostName,
+            visitorName,
+            registeredDate,
+            date,
+            time,
+            actionUrl,
+            actionUrl
+        );
+}
 
     /** Simple plain-text template used for all status update emails (approved/rejected/hold/invite/etc). */
     private String buildSimpleHtml(String visitorName, String hostName, String statusLabel,
@@ -721,4 +799,115 @@ sendMeetingStatusEmail(to, visitorName, hostName, statusLabel, statusColor,
                 organizerName + " has scheduled a meeting with you. Please review the details and respond using the link below.",
                 reviewUrl, "Review & Respond");
     }
+    
+    
+    public void sendHostApprovedEmail(
+            String hostEmail,
+            String visitorName,
+            String hostName,
+            String date,
+            String time,
+            String passNo,
+            String passLink) {
+
+        String html = buildHostApprovedHtml(
+                hostName,
+                visitorName,
+                date,
+                time,
+                passNo,
+                passLink
+        );
+
+        try {
+            MimeMessage mime =
+                    mailSender.createMimeMessage();
+
+            MimeMessageHelper helper =
+                    new MimeMessageHelper(
+                            mime,
+                            false,
+                            "UTF-8"
+                    );
+
+            helper.setFrom(fromAddress);
+            helper.setTo(hostEmail);
+
+            helper.setSubject(
+                    "Visitor Meeting Approved"
+            );
+
+            helper.setText(html, true);
+
+            mailSender.send(mime);
+
+        } catch (MessagingException e) {
+
+            System.err.println(
+                    "Failed to send host approval confirmation email to "
+                            + hostEmail
+                            + ": "
+                            + e.getMessage()
+            );
+        }
+    }
+    
+    private String buildHostApprovedHtml(
+        String hostName,
+        String visitorName,
+        String date,
+        String time,
+        String passNo,
+        String passLink) {
+
+    return """
+        <!DOCTYPE html>
+        <html>
+        <body style="margin:0; padding:0; background-color:#f4f4f7; font-family:'Segoe UI', Arial, sans-serif;">
+
+          <p>Dear <b>%s</b>,</p>
+
+          <p>
+            Your meeting with <b>%s</b> has been
+            successfully approved.
+          </p>
+
+          <p>
+            <b>Date:</b> %s<br>
+            <b>Time:</b> %s<br>
+            <b>Status:</b>
+            <span style="color:#16a34a;">
+                <b>Approved</b>
+            </span>
+          </p>
+
+          <p>
+            <b>Visitor Pass No:</b> %s
+          </p>
+
+          <p>
+            You can view the visitor's gatepass using the link below:
+          </p>
+
+          <p>
+            <a href="%s">%s</a>
+          </p>
+
+          <p>
+            Regards,<br>
+            <b>Visitor Management System</b>
+          </p>
+
+        </body>
+        </html>
+        """.formatted(
+            hostName,
+            visitorName,
+            date,
+            time,
+            passNo,
+            passLink,
+            passLink
+        );
+}
 }
