@@ -206,7 +206,7 @@ public class VisitorMeetingService {
         
         String passLink =
                 frontendUrl
-                + "/visitor-pass"
+                + "/visitor-pass/"
                 + URLEncoder.encode(
                         encryptedToken,
                         StandardCharsets.UTF_8
