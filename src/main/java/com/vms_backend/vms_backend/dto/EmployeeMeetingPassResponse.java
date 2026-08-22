@@ -15,4 +15,6 @@ public class EmployeeMeetingPassResponse {
     private String meetingDate;
     private String meetingTime;
     private String hostName;
+    private String qrCode;
+    private String photo;
 }

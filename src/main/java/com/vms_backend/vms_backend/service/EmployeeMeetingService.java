@@ -38,6 +38,11 @@ public class EmployeeMeetingService {
 //    private final EmailService emailService;
     
     private final ResendEmailService resendEmailService;
+    
+    private final EncryptionService encryptionService;
+    private final QrCodeService qrCodeService; 
+    
+    
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
@@ -254,6 +259,35 @@ public class EmployeeMeetingService {
         res.setStatus(participant.getStatus().name());
         return res;
     }
+//    public EmployeeMeetingPassResponse getMeetingPass(String meetingId, String mobileNo) {
+//
+//        EmployeeMeetingParticipant participant = participantRepository
+//                .findByMeeting_MeetingIdAndParticipantMobile(Long.parseLong(meetingId), mobileNo)
+//                .orElseThrow(() -> new RuntimeException("Pass not found"));
+//
+//        if (participant.getStatus() != ParticipantStatus.APPROVED) {
+//            throw new RuntimeException("Meeting is not approved yet");
+//        }
+//
+//        Employee organizer = participant.getMeeting().getEmployee();
+//        String hostName = organizer.getFirstName();
+//        if (organizer.getLastName() != null && !organizer.getLastName().trim().isEmpty()) {
+//            hostName += " " + organizer.getLastName();
+//        }
+//
+//        return EmployeeMeetingPassResponse.builder()
+//                .meetingId(meetingId)
+//                .passNo(participant.getPassNo())
+//                .participantName(participant.getParticipantName())
+//                .participantOrganisation(participant.getParticipantOrganisation())
+//                .mobileNo(participant.getParticipantMobile())
+//                .meetingTitle(participant.getMeeting().getMeetingTitle())
+//                .meetingDate(participant.getMeeting().getMeetingDate().toString())
+//                .meetingTime(participant.getMeeting().getMeetingTime().toString())
+//                .hostName(hostName)
+//                .build();
+//    }
+ 
     public EmployeeMeetingPassResponse getMeetingPass(String meetingId, String mobileNo) {
 
         EmployeeMeetingParticipant participant = participantRepository
@@ -270,6 +304,17 @@ public class EmployeeMeetingService {
             hostName += " " + organizer.getLastName();
         }
 
+        String passLink = frontendUrl
+                + "/visitor-pass?meetingId=" + meetingId
+                + "&mobileNo=" + mobileNo;
+
+        String qrCode;
+        try {
+            qrCode = qrCodeService.generateQrCode(passLink);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate meeting pass QR code", e);
+        }
+
         return EmployeeMeetingPassResponse.builder()
                 .meetingId(meetingId)
                 .passNo(participant.getPassNo())
@@ -280,7 +325,20 @@ public class EmployeeMeetingService {
                 .meetingDate(participant.getMeeting().getMeetingDate().toString())
                 .meetingTime(participant.getMeeting().getMeetingTime().toString())
                 .hostName(hostName)
+                .qrCode(qrCode)
+                .photo(participant.getPhoto()) // NEW — adjust getter name to match your entity
                 .build();
+    }
+    // Builds the same-style encrypted /visitor-pass/{token} link used for employee meeting passes
+    public String buildEncryptedPassLink(String meetingId, String mobileNo) throws RuntimeException {
+        try {
+            String payload = "EMP|" + meetingId + "|" + mobileNo;
+            String encrypted = encryptionService.encrypt(payload);
+            String encoded = java.net.URLEncoder.encode(encrypted, java.nio.charset.StandardCharsets.UTF_8);
+            return frontendUrl + "/visitor-pass/" + encoded;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build meeting pass link", e);
+        }
     }
     //new
  // add this method inside the class

@@ -68,4 +68,6 @@ public class EmployeeMeetingParticipant {
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
     private String passNo;
+    @Column(name = "photo")
+    private String photo;
 }
