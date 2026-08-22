@@ -1,18 +1,21 @@
 package com.vms_backend.vms_backend.service;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.vms_backend.vms_backend.dto.VisitorCheckInRequest;
 import com.vms_backend.vms_backend.dto.VisitorCheckInResponse;
 import com.vms_backend.vms_backend.entity.VisitorMeeting;
 import com.vms_backend.vms_backend.entity.Visitors;
 import com.vms_backend.vms_backend.repository.VisitorMeetingRepository;
 import com.vms_backend.vms_backend.repository.VisitorRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,9 @@ public class VisitorCheckInService {
 
     private final VisitorRepository visitorsRepository;
     private final VisitorMeetingRepository visitorMeetingRepository;
+    
+    private static final ZoneId INDIA_ZONE =
+            ZoneId.of("Asia/Kolkata");
 
 
     // =========================================================
@@ -128,7 +134,6 @@ public VisitorCheckInResponse checkInOut(
         );
     }
 
-
     String mobileNo =
             request.getMobileNo().trim();
 
@@ -137,13 +142,14 @@ public VisitorCheckInResponse checkInOut(
     // Find visitor
     // -----------------------------------------
 
-    Visitors visitor = visitorsRepository
-            .findById(mobileNo)
-            .orElseThrow(() ->
-                    new RuntimeException(
-                            "Visitor not found"
-                    )
-            );
+    Visitors visitor =
+            visitorsRepository
+                    .findById(mobileNo)
+                    .orElseThrow(() ->
+                            new RuntimeException(
+                                    "Visitor not found"
+                            )
+                    );
 
 
     // -----------------------------------------
@@ -164,7 +170,6 @@ public VisitorCheckInResponse checkInOut(
 
     // =====================================================
     // SECURITY CHECK
-    // Make sure meeting belongs to this visitor
     // =====================================================
 
     if (!meeting.getMobileNo()
@@ -200,9 +205,11 @@ public VisitorCheckInResponse checkInOut(
         );
     }
 
+    LocalDate today =
+            LocalDate.now(INDIA_ZONE);
 
     if (!meeting.getApprovedMeetingDate()
-            .equals(LocalDate.now())) {
+            .equals(today)) {
 
         throw new RuntimeException(
                 "This meeting is not scheduled for today"
@@ -223,11 +230,11 @@ public VisitorCheckInResponse checkInOut(
 
 
     // =====================================================
-    // CURRENT TIME
+    // CURRENT TIME - INDIA
     // =====================================================
 
     LocalTime currentTime =
-            LocalTime.now();
+            LocalTime.now(INDIA_ZONE);
 
 
     // =====================================================
@@ -235,14 +242,6 @@ public VisitorCheckInResponse checkInOut(
     // =====================================================
 
     if (meeting.getEntryTime() == null) {
-
-        /*
-         * Check-in is allowed only:
-         *
-         * 15 minutes BEFORE approved time
-         * until
-         * 15 minutes AFTER approved time
-         */
 
         LocalTime approvedTime =
                 meeting.getApprovedMeetingTime();
@@ -255,7 +254,7 @@ public VisitorCheckInResponse checkInOut(
 
 
         // ---------------------------------------------
-        // Too early
+        // TOO EARLY
         // ---------------------------------------------
 
         if (currentTime.isBefore(checkInStart)) {
@@ -267,7 +266,7 @@ public VisitorCheckInResponse checkInOut(
 
 
         // ---------------------------------------------
-        // Too late
+        // TOO LATE
         // ---------------------------------------------
 
         if (currentTime.isAfter(checkInEnd)) {
@@ -279,7 +278,7 @@ public VisitorCheckInResponse checkInOut(
 
 
         // ---------------------------------------------
-        // Check-in allowed
+        // CHECK-IN ALLOWED
         // ---------------------------------------------
 
         meeting.setEntryTime(currentTime);
@@ -302,17 +301,12 @@ public VisitorCheckInResponse checkInOut(
         LocalTime entryTime =
                 meeting.getEntryTime();
 
-
-        // ---------------------------------------------
-        // Minimum checkout time
-        // ---------------------------------------------
-
         LocalTime earliestCheckoutTime =
                 entryTime.plusHours(1);
 
 
         // ---------------------------------------------
-        // Checkout too early
+        // TOO EARLY
         // ---------------------------------------------
 
         if (currentTime.isBefore(
@@ -325,7 +319,7 @@ public VisitorCheckInResponse checkInOut(
 
 
         // ---------------------------------------------
-        // Check-out allowed
+        // CHECK-OUT ALLOWED
         // ---------------------------------------------
 
         meeting.setExitTime(currentTime);
