@@ -60,7 +60,9 @@ public class EmployeeMeeting {
     
     @Column(name = "meeting_purpose", length = 255)
     private String meetingPurpose;
-
+    
+    @Column(name = "venue", length = 255)
+    private String venue;
 
     // Participants of this meeting
     @OneToMany(

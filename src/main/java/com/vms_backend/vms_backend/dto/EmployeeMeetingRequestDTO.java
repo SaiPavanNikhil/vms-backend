@@ -24,6 +24,7 @@ public class EmployeeMeetingRequestDTO {
     private LocalTime meetingTime;
 
     private List<ParticipantDTO> participants;
+    private String venue;
 
 
     @Data

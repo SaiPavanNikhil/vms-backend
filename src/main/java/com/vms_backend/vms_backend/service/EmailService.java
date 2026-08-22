@@ -560,12 +560,17 @@
 
 package com.vms_backend.vms_backend.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 
 @Service
 public class EmailService {
@@ -577,6 +582,9 @@ public class EmailService {
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
+    
+    @Value("${app.backend-url}")
+    private String backendUrl;
 
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -611,8 +619,12 @@ public class EmailService {
         sendMeetingStatusEmail(to, visitorName, hostName, statusLabel, statusColor,
                                 date, time, message, null, null);
     }
+    
+    @Autowired
+    private EncryptionService encryptionService;
 
-    /** Convenience method: sends the HOST an approval request with a direct link. */
+    /** Convenience method: sends the HOST an approval request with a direct link. 
+     * @throws Exception */
     public void sendHostApprovalEmail(
         String hostEmail,
         String visitorName,
@@ -621,23 +633,45 @@ public class EmailService {
         String date,
         String time,
         String hostId,
-        String mobileNo) {
+        String mobileNo) throws Exception {
+    	
+        // Create payload
+        String payload = "hostId=" + hostId + "&mobileNo=" + mobileNo;
+        
+        String encryptedData = encryptionService.encrypt(payload);
+        
+       /// String actionUrl = frontendUrl + "/HostApproval?hostId="+ hostId + "&mobileNo="+ mobileNo;
+        
+        String actionUrl = frontendUrl
+                + "/HostApproval?token="
+                + URLEncoder.encode(
+                        encryptedData,
+                        StandardCharsets.UTF_8
+                );
 
-    String actionUrl =
-            frontendUrl
-                    + "/HostApproval?hostId="
-                    + hostId
-                    + "&mobileNo="
-                    + mobileNo;
+        String html = buildHostApprovalHtml(
+                hostName,
+                visitorName,
+                registeredDate,
+                date,
+                time,
+                actionUrl );
 
-    String html = buildHostApprovalHtml(
-            hostName,
-            visitorName,
-            registeredDate,
-            date,
-            time,
-            actionUrl
-    );
+//    String actionUrl =
+//            frontendUrl
+//                    + "/HostApproval?hostId="
+//                    + hostId
+//                    + "&mobileNo="
+//                    + mobileNo;
+
+//    String html = buildHostApprovalHtml(
+//            hostName,
+//            visitorName,
+//            registeredDate,
+//            date,
+//            time,
+//            actionUrl
+//    );
 
     try {
         MimeMessage mime = mailSender.createMimeMessage();
@@ -772,18 +806,103 @@ sendMeetingStatusEmail(to, visitorName, hostName, statusLabel, statusColor,
     date, time, message, passLink, "View Meeting Status");
 }
 
-    /** Sends the participant an interview/meeting invite with a link to review and respond. */
+  //monika 21 scheudle page
+    /** Sends the participant a meeting invite with a plain link (no token) to review and respond. */
+    /** Sends the participant a meeting invite with Available/Not Available action buttons directly in the email. */
     public void sendParticipantInviteEmail(String to, String participantName, String organizerName,
-                                            String date, String time, String token) {
-        if (to == null || to.isBlank()) return;
+            String organizerDesignation, String date, String time,
+            String purpose, String venue, String meetingId, String mobileNo) {
+if (to == null || to.isBlank()) return;
 
-        String reviewUrl = frontendUrl + "/participant-response?token=" + token;
-        sendMeetingStatusEmail(to, participantName, organizerName,
-                "Meeting Invitation", "#4f46e5",
-                date, time,
-                organizerName + " has scheduled a meeting with you. Please review the details and respond using the link below.",
-                reviewUrl, "Review & Respond");
-    }
+String approveUrl = backendUrl
++ "/api/employee-meetings/participant-response/action?meetingId=" + meetingId
++ "&mobileNo=" + mobileNo + "&action=approve";
+
+String rejectUrl = backendUrl
++ "/api/employee-meetings/participant-response/action?meetingId=" + meetingId
++ "&mobileNo=" + mobileNo + "&action=reject";
+
+String html = buildParticipantInviteHtml(participantName, organizerName, organizerDesignation,
+date, time, purpose, venue, approveUrl, rejectUrl);
+
+try {
+MimeMessage mime = mailSender.createMimeMessage();
+MimeMessageHelper helper = new MimeMessageHelper(mime, false, "UTF-8");
+helper.setFrom(fromAddress);
+helper.setTo(to);
+helper.setSubject("Meeting Scheduling Request");
+helper.setText(html, true);
+mailSender.send(mime);
+} catch (Exception e) {
+System.err.println("Failed to send participant invite email to " + to + ": " + e.getMessage());
+e.printStackTrace();
+}
+}
+
+private String buildParticipantInviteHtml(String participantName, String organizerName, String organizerDesignation,
+                String date, String time, String purpose, String venue,
+                String approveUrl, String rejectUrl) {
+
+String chairedBy = organizerName
++ (organizerDesignation != null && !organizerDesignation.isBlank()
+? " (" + organizerDesignation + ")" : "");
+
+return """
+<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; background-color:#f4f4f7; font-family:'Segoe UI', Arial, sans-serif;">
+
+<p>Dear <b>%s</b>,</p>
+
+<p>You have been requested to attend a meeting. Please find the details below:</p>
+
+<p>
+<b>Hosted by:</b> %s<br>
+<b>Chaired by:</b> %s<br>
+<b>Venue:</b> %s<br>
+<b>Date:</b> %s<br>
+<b>Time:</b> %s<br>
+<b>Purpose:</b> %s
+</p>
+
+<p>Please confirm your availability:</p>
+
+<table cellpadding="0" cellspacing="0" style="margin-top:12px;">
+<tr>
+<td style="padding-right:12px;">
+<a href="%s" style="display:inline-block; background:#16a34a; color:#ffffff;
+font-weight:600; text-decoration:none; padding:12px 28px; border-radius:6px;">
+✓ Available
+</a>
+</td>
+<td>
+<a href="%s" style="display:inline-block; background:#dc2626; color:#ffffff;
+font-weight:600; text-decoration:none; padding:12px 28px; border-radius:6px;">
+✕ Not Available
+</a>
+</td>
+</tr>
+</table>
+
+<p style="margin-top:24px;">
+Regards,<br>
+<b>Visitor Management System</b>
+</p>
+
+</body>
+</html>
+""".formatted(
+participantName,
+organizerName,
+chairedBy,
+venue != null && !venue.isBlank() ? venue : "-",
+date,
+time,
+purpose != null && !purpose.isBlank() ? purpose : "-",
+approveUrl,
+rejectUrl
+);
+}
     
     
     public void sendHostApprovedEmail(

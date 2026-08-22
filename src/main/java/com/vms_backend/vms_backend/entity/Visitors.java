@@ -41,11 +41,15 @@ public class Visitors {
     @Column(name = "registrationdate", nullable = false)
     private LocalDate registrationDate;
 
-    
+    @Column(name = "description_of_visit", length=100)
+    private String descriptionOfVisit;
+
 	@Column(name = "mode_of_visit", length = 10, nullable = false)
     private String modeOfVisit;
     @Column(name = "purpose_of_visit", length = 30, nullable = false)
     private String purposeOfVisit;
+    
+    
     // getters & setters
     public String getMobileNo() { return mobileNo; }
     public void setMobileNo(String mobileNo) { this.mobileNo = mobileNo; }
@@ -76,5 +80,11 @@ public class Visitors {
 	}
 	public void setDesignation(String designation) {
 		this.designation = designation;
+	}
+	public String getDescriptionOfVisit() {
+		return descriptionOfVisit;
+	}
+	public void setDescriptionOfVisit(String descriptionOfVisit) {
+		this.descriptionOfVisit = descriptionOfVisit;
 	}
 }

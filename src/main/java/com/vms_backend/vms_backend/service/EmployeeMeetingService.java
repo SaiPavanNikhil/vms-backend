@@ -1,12 +1,20 @@
 package com.vms_backend.vms_backend.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vms_backend.vms_backend.dto.EmployeeDashboardStatsResponse;
+import com.vms_backend.vms_backend.dto.EmployeeMeetingPassResponse;
 import com.vms_backend.vms_backend.dto.EmployeeMeetingRequestDTO;
 import com.vms_backend.vms_backend.dto.ParticipantMeetingDetailsResponse;
+import com.vms_backend.vms_backend.dto.RecentVisitorResponse;
 import com.vms_backend.vms_backend.entity.Employee;
 import com.vms_backend.vms_backend.entity.EmployeeMeeting;
 import com.vms_backend.vms_backend.entity.EmployeeMeetingParticipant;
@@ -24,253 +32,120 @@ public class EmployeeMeetingService {
     private final EmployeeMeetingRepository employeeMeetingRepository;
 
     private final EmployeeRepository employeeRepository;
-    
+
     private final EmployeeMeetingParticipantRepository participantRepository;
 
 //    private final EmailService emailService;
+    
     private final ResendEmailService resendEmailService;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
 
 
     @Transactional
     public String scheduleMeeting(EmployeeMeetingRequestDTO request) {
 
-        // ==========================================
-        // 1. FIND EMPLOYEE WHO SCHEDULED THE MEETING
-        // ==========================================
-
         Employee employee = employeeRepository
                 .findById(request.getEmployeeId())
-                .orElseThrow(() ->
-                        new RuntimeException("Employee not found")
-                );
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
 
-
-        // ==========================================
-        // 2. VALIDATE PARTICIPANTS
-        // ==========================================
-
-        if (request.getParticipants() == null ||
-            request.getParticipants().isEmpty()) {
-
-            throw new RuntimeException(
-                    "At least one participant is required"
-            );
+        if (request.getParticipants() == null || request.getParticipants().isEmpty()) {
+            throw new RuntimeException("At least one participant is required");
         }
 
-
-        // ==========================================
-        // 3. VALIDATE MEETING DETAILS
-        // ==========================================
-
-        if (request.getMeetingTitle() == null ||
-            request.getMeetingTitle().isBlank()) {
-
-            throw new RuntimeException(
-                    "Meeting title is required"
-            );
+        if (request.getMeetingTitle() == null || request.getMeetingTitle().isBlank()) {
+            throw new RuntimeException("Meeting title is required");
         }
-
 
         if (request.getMeetingDate() == null) {
-
-            throw new RuntimeException(
-                    "Meeting date is required"
-            );
+            throw new RuntimeException("Meeting date is required");
         }
-
 
         if (request.getMeetingTime() == null) {
-
-            throw new RuntimeException(
-                    "Meeting time is required"
-            );
+            throw new RuntimeException("Meeting time is required");
         }
 
-
-        // ==========================================
-        // 4. CREATE MEETING
-        // ==========================================
-
         EmployeeMeeting meeting = EmployeeMeeting.builder()
-
                 .employee(employee)
-
-                .meetingTitle(
-                        request.getMeetingTitle().trim()
-                )
-
-                .meetingPurpose(
-                		request.getMeetingPurpose()
-                		)
-
-                .meetingDate(
-                        request.getMeetingDate()
-                )
-
-                .meetingTime(
-                        request.getMeetingTime()
-                )
-
-                .createdAt(
-                        LocalDateTime.now()
-                )
-
+                .meetingTitle(request.getMeetingTitle().trim())
+                .meetingPurpose(request.getMeetingPurpose())
+                .venue(request.getVenue())
+                .meetingDate(request.getMeetingDate())
+                .meetingTime(request.getMeetingTime())
+                .createdAt(LocalDateTime.now())
                 .build();
 
+        for (EmployeeMeetingRequestDTO.ParticipantDTO participantDTO : request.getParticipants()) {
 
-        // ==========================================
-        // 5. CREATE PARTICIPANTS
-        // ==========================================
-
-        for (
-            EmployeeMeetingRequestDTO.ParticipantDTO participantDTO
-            : request.getParticipants()
-        ) {
-
-            if (participantDTO.getName() == null ||
-                participantDTO.getName().isBlank()) {
-
-                throw new RuntimeException(
-                        "Participant name is required"
-                );
+            if (participantDTO.getName() == null || participantDTO.getName().isBlank()) {
+                throw new RuntimeException("Participant name is required");
             }
 
-
-            if (participantDTO.getEmail() == null ||
-                participantDTO.getEmail().isBlank()) {
-
-                throw new RuntimeException(
-                        "Participant email is required"
-                );
-            }
-            
-            if (participantDTO.getOrganisation() == null ||
-            		participantDTO.getOrganisation().isBlank()) {
-            	
-            	throw new RuntimeException(
-            			"Participant organisation is required"
-            			);
+            if (participantDTO.getEmail() == null || participantDTO.getEmail().isBlank()) {
+                throw new RuntimeException("Participant email is required");
             }
 
-
-            if (participantDTO.getMobileNo() == null ||
-                participantDTO.getMobileNo().isBlank()) {
-
-                throw new RuntimeException(
-                        "Participant mobile number is required"
-                );
+            if (participantDTO.getOrganisation() == null || participantDTO.getOrganisation().isBlank()) {
+                throw new RuntimeException("Participant organisation is required");
             }
 
+            if (participantDTO.getMobileNo() == null || participantDTO.getMobileNo().isBlank()) {
+                throw new RuntimeException("Participant mobile number is required");
+            }
 
-            EmployeeMeetingParticipant participant =
-                    EmployeeMeetingParticipant.builder()
-
+            EmployeeMeetingParticipant participant = EmployeeMeetingParticipant.builder()
                     .meeting(meeting)
-
-                    .participantName(
-                            participantDTO.getName().trim()
-                    )
-
-                    .participantEmail(
-                            participantDTO.getEmail().trim()
-                    )
-
-                    .participantMobile(
-                            participantDTO.getMobileNo().trim()
-                    )
-
-                    .participantOrganisation(
-                    		participantDTO.getOrganisation().trim()
-                    		)
-
+                    .participantName(participantDTO.getName().trim())
+                    .participantEmail(participantDTO.getEmail().trim())
+                    .participantMobile(participantDTO.getMobileNo().trim())
+                    .participantOrganisation(participantDTO.getOrganisation().trim())
+                    .status(ParticipantStatus.PENDING)
                     .build();
 
-
-            // Attach participant to meeting
             meeting.getParticipants().add(participant);
         }
 
-
-        // ==========================================
-        // 6. SAVE MEETING + PARTICIPANTS
-        // ==========================================
-
         employeeMeetingRepository.save(meeting);
 
-
-        // ==========================================
-        // 7. GET ORGANIZER NAME
-        // ==========================================
-
-        String organizerName =
-                employee.getFirstName();
-
-
-        if (employee.getLastName() != null &&
-            !employee.getLastName().trim().isEmpty()) {
-
-            organizerName +=
-                    " " + employee.getLastName();
+        String organizerName = employee.getFirstName();
+        if (employee.getLastName() != null && !employee.getLastName().trim().isEmpty()) {
+            organizerName += " " + employee.getLastName();
         }
-
-
-        // ==========================================
-        // 8. SEND EMAIL TO EACH PARTICIPANT
-        // ==========================================
-
-        for (
-            EmployeeMeetingRequestDTO.ParticipantDTO participantDTO
-            : request.getParticipants()
-        ) {
-
-            String message =
-                    "You have been invited to a meeting "
-                    + "scheduled by "
-                    + organizerName
-                    + ".";
-
-
-            resendEmailService.sendMeetingStatusEmail(
-
-                    // To
-                    participantDTO.getEmail(),
-
-                    // Participant name
-                    participantDTO.getName(),
-
-                    // Host / organizer
+        for (EmployeeMeetingParticipant participant : meeting.getParticipants()) {
+        	resendEmailService.sendParticipantInviteEmail(
+                    participant.getParticipantEmail(),
+                    participant.getParticipantName(),
                     organizerName,
-
-                    // Status
-                    "Meeting Scheduled",
-
-                    // Status color
-                    "#1769aa",
-
-                    // Date
+                    employee.getDesignation(),
                     request.getMeetingDate().toString(),
-
-                    // Time
                     request.getMeetingTime().toString(),
-
-                    // Message
-                    message
+                    request.getMeetingPurpose(),
+                    request.getVenue(),
+                    meeting.getMeetingId().toString(),
+                    participant.getParticipantMobile()
             );
         }
-
-
-        // ==========================================
-        // 9. RETURN SUCCESS
-        // ==========================================
+//        for (EmployeeMeetingParticipant participant : meeting.getParticipants()) {
+//            emailService.sendParticipantInviteEmail(
+//                    participant.getParticipantEmail(),
+//                    participant.getParticipantName(),
+//                    organizerName,
+//                    request.getMeetingDate().toString(),
+//                    request.getMeetingTime().toString(),
+//                    meeting.getMeetingId().toString(),
+//                    participant.getParticipantMobile()
+//            );
+//        }
 
         return "Meeting scheduled successfully";
     }
-    
+
     @Transactional
-    public String respondToInvitation(String token, String action) {
+    public String respondToInvitation(String meetingId, String mobileNo, String action) {
 
         EmployeeMeetingParticipant participant = participantRepository
-                .findByApprovalToken(token)
+                .findByMeeting_MeetingIdAndParticipantMobile(Long.parseLong(meetingId), mobileNo)
                 .orElseThrow(() -> new RuntimeException("Invalid or expired link"));
 
         if (participant.getStatus() != ParticipantStatus.PENDING) {
@@ -285,43 +160,81 @@ public class EmployeeMeetingService {
             throw new RuntimeException("Invalid action");
         }
 
-//        participant.setRespondedAt(LocalDateTime.now());
         participantRepository.save(participant);
 
-        // Notify the employee (organizer/host) of the response
         Employee organizer = participant.getMeeting().getEmployee();
-        if (organizer != null && organizer.getEmailId() != null) {
+        String organizerName = organizer != null
+                ? organizer.getFirstName()
+                    + (organizer.getLastName() != null && !organizer.getLastName().isBlank()
+                            ? " " + organizer.getLastName() : "")
+                : "";
 
-            boolean approved = participant.getStatus() == ParticipantStatus.APPROVED;
-            String statusLabel = approved ? "Pass Generated" : "Rejected";
-            String statusColor = approved ? "#16a34a" : "#dc2626";
-            String message = approved
-                    ? participant.getParticipantName() + " has confirmed attendance and generated a pass for \""
-                        + participant.getMeeting().getMeetingTitle() + "\"."
-                    : participant.getParticipantName() + " has rejected the meeting \""
-                        + participant.getMeeting().getMeetingTitle() + "\".";
+        String date = participant.getMeeting().getMeetingDate().toString();
+        String time = participant.getMeeting().getMeetingTime().toString();
 
-            resendEmailService.sendMeetingStatusEmail(
-                    organizer.getEmailId(),
-                    organizer.getFirstName(),
+        boolean approved = participant.getStatus() == ParticipantStatus.APPROVED;
+
+        if (approved) {
+
+            String passNo = "PASS-" + date.replace("-", "") + "-" + participant.getParticipantMobile();
+            participant.setPassNo(passNo);
+            participantRepository.save(participant);
+
+            String passLink = frontendUrl
+                    + "/employee-pass?meetingId=" + meetingId      // was "/EmployeeMeetingPass"
+                    + "&mobileNo=" + mobileNo;
+            if (organizer != null && organizer.getEmailId() != null && !organizer.getEmailId().isBlank()) {
+            	resendEmailService.sendVisitorStatusEmail(
+                        organizer.getEmailId(),
+                        organizerName,
+                        participant.getParticipantName(),
+                        "Pass Generated",
+                        "#16a34a",
+                        date,
+                        time,
+                        participant.getParticipantName() + " has confirmed attendance and generated a pass for \""
+                                + participant.getMeeting().getMeetingTitle() + "\".",
+                        passLink
+                );
+            }
+
+            resendEmailService.sendHostApprovedEmail(
+                    participant.getParticipantEmail(),
+                    organizerName,
                     participant.getParticipantName(),
-                    statusLabel,
-                    statusColor,
-                    participant.getMeeting().getMeetingDate().toString(),
-                    participant.getMeeting().getMeetingTime().toString(),
-                    message
+                    date,
+                    time,
+                    passNo,
+                    passLink
             );
+
+        } else {
+
+            if (organizer != null && organizer.getEmailId() != null && !organizer.getEmailId().isBlank()) {
+            	resendEmailService.sendVisitorStatusEmail(
+                        organizer.getEmailId(),
+                        organizerName,
+                        participant.getParticipantName(),
+                        "Rejected",
+                        "#dc2626",
+                        date,
+                        time,
+                        participant.getParticipantName() + " has rejected the meeting \""
+                                + participant.getMeeting().getMeetingTitle() + "\".",
+                        null
+                );
+            }
         }
 
-        return participant.getStatus() == ParticipantStatus.APPROVED
+        return approved
                 ? "Pass generated. Thank you for confirming your attendance."
                 : "You have declined the meeting";
     }
-    
-    public ParticipantMeetingDetailsResponse getParticipantDetails(String token) {
+
+    public ParticipantMeetingDetailsResponse getParticipantDetails(String meetingId, String mobileNo) {
 
         EmployeeMeetingParticipant participant = participantRepository
-                .findByApprovalToken(token)
+                .findByMeeting_MeetingIdAndParticipantMobile(Long.parseLong(meetingId), mobileNo)
                 .orElseThrow(() -> new RuntimeException("Invalid or expired link"));
 
         Employee organizer = participant.getMeeting().getEmployee();
@@ -340,5 +253,108 @@ public class EmployeeMeetingService {
         res.setMeetingTime(participant.getMeeting().getMeetingTime().toString());
         res.setStatus(participant.getStatus().name());
         return res;
+    }
+    public EmployeeMeetingPassResponse getMeetingPass(String meetingId, String mobileNo) {
+
+        EmployeeMeetingParticipant participant = participantRepository
+                .findByMeeting_MeetingIdAndParticipantMobile(Long.parseLong(meetingId), mobileNo)
+                .orElseThrow(() -> new RuntimeException("Pass not found"));
+
+        if (participant.getStatus() != ParticipantStatus.APPROVED) {
+            throw new RuntimeException("Meeting is not approved yet");
+        }
+
+        Employee organizer = participant.getMeeting().getEmployee();
+        String hostName = organizer.getFirstName();
+        if (organizer.getLastName() != null && !organizer.getLastName().trim().isEmpty()) {
+            hostName += " " + organizer.getLastName();
+        }
+
+        return EmployeeMeetingPassResponse.builder()
+                .meetingId(meetingId)
+                .passNo(participant.getPassNo())
+                .participantName(participant.getParticipantName())
+                .participantOrganisation(participant.getParticipantOrganisation())
+                .mobileNo(participant.getParticipantMobile())
+                .meetingTitle(participant.getMeeting().getMeetingTitle())
+                .meetingDate(participant.getMeeting().getMeetingDate().toString())
+                .meetingTime(participant.getMeeting().getMeetingTime().toString())
+                .hostName(hostName)
+                .build();
+    }
+    //new
+ // add this method inside the class
+    public EmployeeDashboardStatsResponse getDashboardStats(String employeeId) {
+
+        if (employeeId == null || employeeId.isBlank()) {
+            throw new RuntimeException("Employee id is required");
+        }
+
+        LocalDate today = LocalDate.now();
+
+        long appointmentsToday = employeeMeetingRepository
+                .countByEmployee_EmployeeIdAndMeetingDate(employeeId, today);
+
+        long todaysVisitors = participantRepository
+                .countTodaysApprovedVisitors(employeeId, today);
+
+        long activePasses = participantRepository
+                .countActivePassesToday(employeeId, today);
+
+        long pendingRequests = participantRepository
+                .countByMeeting_Employee_EmployeeIdAndStatus(employeeId, ParticipantStatus.PENDING);
+
+        return EmployeeDashboardStatsResponse.builder()
+                .todaysVisitors(todaysVisitors)
+                .appointmentsToday(appointmentsToday)
+                .activePasses(activePasses)
+                .pendingRequests(pendingRequests)
+                .build();
+    }
+    //THIS CODE FOR SEND HOST EMPLOYEE SEND INVITATION STATUS DETAILS PERSOANL RECENT VISITOR DETAILS EMPLYEE DASHBAORD
+ // add this method inside the class
+    public List<RecentVisitorResponse> getRecentVisitors(String employeeId, int limit) {
+
+        if (employeeId == null || employeeId.isBlank()) {
+            throw new RuntimeException("Employee id is required");
+        }
+
+        List<EmployeeMeetingParticipant> participants = participantRepository
+                .findRecentByEmployeeRaw(employeeId)
+                .stream()
+                .limit(limit)
+                .collect(Collectors.toList());
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a");
+
+        return participants.stream()
+                .map(p -> {
+
+                    Employee organizer = p.getMeeting().getEmployee();
+
+                    String hostName = organizer != null
+                            ? organizer.getFirstName()
+                                + (organizer.getLastName() != null && !organizer.getLastName().isBlank()
+                                    ? " " + organizer.getLastName() : "")
+                            : "";
+
+                    String statusLabel = switch (p.getStatus()) {
+                        case APPROVED -> "Approved";
+                        case REJECTED -> "Rejected";
+                        default -> "Scheduled";
+                    };
+
+                    String formattedTime = p.getMeeting().getMeetingTime() != null
+                            ? p.getMeeting().getMeetingTime().format(timeFormatter)
+                            : "";
+
+                    return RecentVisitorResponse.builder()
+                            .visitorName(p.getParticipantName())
+                            .purpose(p.getMeeting().getMeetingPurpose())
+                            .hostName(hostName)
+                            .time(formattedTime)
+                            .status(statusLabel)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 }

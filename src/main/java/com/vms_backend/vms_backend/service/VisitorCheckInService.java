@@ -95,169 +95,258 @@ public class VisitorCheckInService {
 
 
     // =========================================================
-    // API 2
-    // CHECK-IN / CHECK-OUT
-    // =========================================================
+// API 2
+// CHECK-IN / CHECK-OUT
+// =========================================================
 
-    @Transactional
-    public VisitorCheckInResponse checkInOut(
-            VisitorCheckInRequest request) {
+@Transactional
+public VisitorCheckInResponse checkInOut(
+        VisitorCheckInRequest request) {
 
-        // -----------------------------------------
-        // Validate request
-        // -----------------------------------------
+    // -----------------------------------------
+    // Validate request
+    // -----------------------------------------
 
-        if (request == null) {
-            throw new RuntimeException(
-                    "Request is required"
-            );
-        }
-
-        if (request.getMobileNo() == null ||
-                request.getMobileNo().trim().isEmpty()) {
-
-            throw new RuntimeException(
-                    "Mobile number is required"
-            );
-        }
-
-        if (request.getMeetingId() == null) {
-
-            throw new RuntimeException(
-                    "Meeting ID is required"
-            );
-        }
-
-
-        String mobileNo =
-                request.getMobileNo().trim();
-
-
-        // -----------------------------------------
-        // Find visitor
-        // -----------------------------------------
-
-        Visitors visitor = visitorsRepository
-                .findById(mobileNo)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Visitor not found"
-                        )
-                );
-
-
-        // -----------------------------------------
-        // Find meeting
-        // -----------------------------------------
-
-        VisitorMeeting meeting =
-                visitorMeetingRepository
-                        .findById(
-                                request.getMeetingId()
-                        )
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Meeting not found"
-                                )
-                        );
-
-
-        // =====================================================
-        // SECURITY CHECK
-        // Make sure meeting belongs to this visitor
-        // =====================================================
-
-        if (!meeting.getMobileNo()
-                .equals(visitor.getMobileNo())) {
-
-            throw new RuntimeException(
-                    "This meeting does not belong to the visitor"
-            );
-        }
-
-
-        // =====================================================
-        // ACCEPTANCE CHECK
-        // =====================================================
-
-        if (!"Y".equalsIgnoreCase(
-                meeting.getAcceptFlag())) {
-
-            throw new RuntimeException(
-                    "Meeting has not been accepted"
-            );
-        }
-
-
-        // =====================================================
-        // APPROVED DATE CHECK
-        // =====================================================
-
-        if (meeting.getApprovedMeetingDate() == null) {
-
-            throw new RuntimeException(
-                    "Approved meeting date is not available"
-            );
-        }
-
-
-        if (!meeting.getApprovedMeetingDate()
-                .equals(LocalDate.now())) {
-
-            throw new RuntimeException(
-                    "This meeting is not scheduled for today"
-            );
-        }
-
-
-        // =====================================================
-        // CHECK-IN
-        // =====================================================
-
-        if (meeting.getEntryTime() == null) {
-
-            LocalTime currentTime =
-                    LocalTime.now();
-
-            meeting.setEntryTime(currentTime);
-
-            visitorMeetingRepository.save(meeting);
-
-            return buildResponse(
-                    visitor,
-                    meeting
-            );
-        }
-
-
-        // =====================================================
-        // CHECK-OUT
-        // =====================================================
-
-        if (meeting.getExitTime() == null) {
-
-            LocalTime currentTime =
-                    LocalTime.now();
-
-            meeting.setExitTime(currentTime);
-
-            visitorMeetingRepository.save(meeting);
-
-            return buildResponse(
-                    visitor,
-                    meeting
-            );
-        }
-
-
-        // =====================================================
-        // ALREADY CHECKED OUT
-        // =====================================================
-
+    if (request == null) {
         throw new RuntimeException(
-                "Visitor has already checked out"
+                "Request is required"
         );
     }
+
+    if (request.getMobileNo() == null ||
+            request.getMobileNo().trim().isEmpty()) {
+
+        throw new RuntimeException(
+                "Mobile number is required"
+        );
+    }
+
+    if (request.getMeetingId() == null) {
+
+        throw new RuntimeException(
+                "Meeting ID is required"
+        );
+    }
+
+
+    String mobileNo =
+            request.getMobileNo().trim();
+
+
+    // -----------------------------------------
+    // Find visitor
+    // -----------------------------------------
+
+    Visitors visitor = visitorsRepository
+            .findById(mobileNo)
+            .orElseThrow(() ->
+                    new RuntimeException(
+                            "Visitor not found"
+                    )
+            );
+
+
+    // -----------------------------------------
+    // Find meeting
+    // -----------------------------------------
+
+    VisitorMeeting meeting =
+            visitorMeetingRepository
+                    .findById(
+                            request.getMeetingId()
+                    )
+                    .orElseThrow(() ->
+                            new RuntimeException(
+                                    "Meeting not found"
+                            )
+                    );
+
+
+    // =====================================================
+    // SECURITY CHECK
+    // Make sure meeting belongs to this visitor
+    // =====================================================
+
+    if (!meeting.getMobileNo()
+            .equals(visitor.getMobileNo())) {
+
+        throw new RuntimeException(
+                "This meeting does not belong to the visitor"
+        );
+    }
+
+
+    // =====================================================
+    // ACCEPTANCE CHECK
+    // =====================================================
+
+    if (!"Y".equalsIgnoreCase(
+            meeting.getAcceptFlag())) {
+
+        throw new RuntimeException(
+                "Meeting has not been accepted"
+        );
+    }
+
+
+    // =====================================================
+    // APPROVED DATE CHECK
+    // =====================================================
+
+    if (meeting.getApprovedMeetingDate() == null) {
+
+        throw new RuntimeException(
+                "Approved meeting date is not available"
+        );
+    }
+
+
+    if (!meeting.getApprovedMeetingDate()
+            .equals(LocalDate.now())) {
+
+        throw new RuntimeException(
+                "This meeting is not scheduled for today"
+        );
+    }
+
+
+    // =====================================================
+    // APPROVED TIME CHECK
+    // =====================================================
+
+    if (meeting.getApprovedMeetingTime() == null) {
+
+        throw new RuntimeException(
+                "Approved meeting time is not available"
+        );
+    }
+
+
+    // =====================================================
+    // CURRENT TIME
+    // =====================================================
+
+    LocalTime currentTime =
+            LocalTime.now();
+
+
+    // =====================================================
+    // CHECK-IN
+    // =====================================================
+
+    if (meeting.getEntryTime() == null) {
+
+        /*
+         * Check-in is allowed only:
+         *
+         * 15 minutes BEFORE approved time
+         * until
+         * 15 minutes AFTER approved time
+         */
+
+        LocalTime approvedTime =
+                meeting.getApprovedMeetingTime();
+
+        LocalTime checkInStart =
+                approvedTime.minusMinutes(15);
+
+        LocalTime checkInEnd =
+                approvedTime.plusMinutes(15);
+
+
+        // ---------------------------------------------
+        // Too early
+        // ---------------------------------------------
+
+        if (currentTime.isBefore(checkInStart)) {
+
+            throw new RuntimeException(
+                    "Check-in is allowed only 15 minutes before the approved meeting time"
+            );
+        }
+
+
+        // ---------------------------------------------
+        // Too late
+        // ---------------------------------------------
+
+        if (currentTime.isAfter(checkInEnd)) {
+
+            throw new RuntimeException(
+                    "Check-in time has expired. Check-in was allowed only until 15 minutes after the approved meeting time"
+            );
+        }
+
+
+        // ---------------------------------------------
+        // Check-in allowed
+        // ---------------------------------------------
+
+        meeting.setEntryTime(currentTime);
+
+        visitorMeetingRepository.save(meeting);
+
+        return buildResponse(
+                visitor,
+                meeting
+        );
+    }
+
+
+    // =====================================================
+    // CHECK-OUT
+    // =====================================================
+
+    if (meeting.getExitTime() == null) {
+
+        LocalTime entryTime =
+                meeting.getEntryTime();
+
+
+        // ---------------------------------------------
+        // Minimum checkout time
+        // ---------------------------------------------
+
+        LocalTime earliestCheckoutTime =
+                entryTime.plusHours(1);
+
+
+        // ---------------------------------------------
+        // Checkout too early
+        // ---------------------------------------------
+
+        if (currentTime.isBefore(
+                earliestCheckoutTime)) {
+
+            throw new RuntimeException(
+                    "Check-out is allowed only after 1 hour from check-in"
+            );
+        }
+
+
+        // ---------------------------------------------
+        // Check-out allowed
+        // ---------------------------------------------
+
+        meeting.setExitTime(currentTime);
+
+        visitorMeetingRepository.save(meeting);
+
+        return buildResponse(
+                visitor,
+                meeting
+        );
+    }
+
+
+    // =====================================================
+    // ALREADY CHECKED OUT
+    // =====================================================
+
+    throw new RuntimeException(
+            "Visitor has already checked out"
+    );
+}
 
 
     // =========================================================

@@ -1,18 +1,18 @@
-package com.vms_backend.vms_backend.config;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-import com.resend.Resend;
-
-@Configuration
-public class ResendEmailConfig {
-
-    @Bean
-    public Resend resend(
-            @Value("${resend.api-key}") String apiKey) {
-
-        return new Resend(apiKey);
-    }
-}
+//package com.vms_backend.vms_backend.config;
+//
+//import org.springframework.beans.factory.annotation.Value;
+//import org.springframework.context.annotation.Bean;
+//import org.springframework.context.annotation.Configuration;
+//
+//import com.resend.Resend;
+//
+//@Configuration
+//public class ResendEmailConfig {
+//
+//    @Bean
+//    public Resend resend(
+//            @Value("${resend.api-key}") String apiKey) {
+//
+//        return new Resend(apiKey);
+//    }
+//}

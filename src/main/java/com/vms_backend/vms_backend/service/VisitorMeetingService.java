@@ -212,6 +212,7 @@ public class VisitorMeetingService {
                         StandardCharsets.UTF_8
                 );
 
+        System.out.println("passsss linkkkkkk ====="+ passLink);
 
         // =====================================================
         // NOTIFY VISITOR

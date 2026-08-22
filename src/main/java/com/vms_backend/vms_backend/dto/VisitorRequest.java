@@ -12,8 +12,15 @@ public class VisitorRequest {
     private String photoDataUrl;
     private String modeOfVisit;// e.g. "data:image/jpeg;base64,....."
     private String purposeOfVisit;
+    private String descriptionOfVisit;
 
-    // getters & setters
+    public String getDescriptionOfVisit() {
+		return descriptionOfVisit;
+	}
+	public void setDescriptionOfVisit(String descriptionOfVisit) {
+		this.descriptionOfVisit = descriptionOfVisit;
+	}
+	// getters & setters
     public String getMobileNo() { return mobileNo; }
     public void setMobileNo(String mobileNo) { this.mobileNo = mobileNo; }
     public String getFirstName() { return firstName; }

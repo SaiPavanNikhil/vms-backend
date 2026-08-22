@@ -15,21 +15,55 @@ public class VisitorPassResponse {
 
     private Integer meetingId;
 
+    // =========================
+    // PASS
+    // =========================
+
     private String passNo;
+
+    // =========================
+    // VISITOR DETAILS
+    // =========================
 
     private String visitorName;
 
+    private String mobileNo;
+
     private String company;
+
+    private String address;
 
     private String purpose;
 
-    private String mobileNo;
-
     private String photo;
 
+    // =========================
+    // VISIT DATE
+    // =========================
+
     private LocalDate visitDate;
+
+    // =========================
+    // HOST DETAILS
+    // =========================
 
     private String hostName;
 
     private String hostDesignation;
+
+    private String department;
+
+    // =========================
+    // MEETING TIMES
+    // =========================
+
+    private String requestedMeetingTime;
+
+    private String approvedMeetingTime;
+
+    // =========================
+    // QR CODE
+    // =========================
+
+    private String qrCode;
 }

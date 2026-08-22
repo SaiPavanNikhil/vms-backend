@@ -67,4 +67,5 @@ public class EmployeeMeetingParticipant {
 
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
+    private String passNo;
 }

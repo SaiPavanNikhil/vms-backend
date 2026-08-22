@@ -1,5 +1,8 @@
 package com.vms_backend.vms_backend.service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,12 +20,16 @@ import lombok.extern.slf4j.Slf4j;
 public class ResendEmailService {
 
     private final Resend resend;
+    private final EncryptionService encryptionService;
 
     @Value("${resend.from:onboarding@resend.dev}")
     private String fromAddress;
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
+
+    @Value("${app.backend-url}")
+    private String backendUrl;
 
 
     // ============================================================
@@ -144,7 +151,7 @@ public class ResendEmailService {
     // ============================================================
 
     /**
-     * Sends the HOST an approval request with a direct link.
+     * Sends the HOST an approval request with an encrypted direct link.
      */
     public void sendHostApprovalEmail(
             String hostEmail,
@@ -154,14 +161,23 @@ public class ResendEmailService {
             String date,
             String time,
             String hostId,
-            String mobileNo) {
+            String mobileNo) throws Exception {
+
+        // Create encrypted payload
+        String payload =
+                "hostId=" + hostId +
+                "&mobileNo=" + mobileNo;
+
+        String encryptedData =
+                encryptionService.encrypt(payload);
 
         String actionUrl =
                 frontendUrl
-                        + "/HostApproval?hostId="
-                        + hostId
-                        + "&mobileNo="
-                        + mobileNo;
+                        + "/HostApproval?token="
+                        + URLEncoder.encode(
+                                encryptedData,
+                                StandardCharsets.UTF_8
+                        );
 
         String html = buildHostApprovalHtml(
                 hostName,
@@ -242,6 +258,7 @@ public class ResendEmailService {
 
     /**
      * Common HTML template used for:
+     *
      * Approved
      * Rejected
      * On Hold
@@ -429,7 +446,67 @@ public class ResendEmailService {
     // ============================================================
 
     /**
-     * Sends an employee meeting invitation to a participant.
+     * Sends the participant a meeting invitation with
+     * Available / Not Available buttons directly in the email.
+     *
+     * This matches the original EmailService implementation.
+     */
+    public void sendParticipantInviteEmail(
+            String to,
+            String participantName,
+            String organizerName,
+            String organizerDesignation,
+            String date,
+            String time,
+            String purpose,
+            String venue,
+            String meetingId,
+            String mobileNo) {
+
+        if (to == null || to.isBlank()) {
+            return;
+        }
+
+        String approveUrl =
+                backendUrl
+                        + "/api/employee-meetings/participant-response/action"
+                        + "?meetingId=" + meetingId
+                        + "&mobileNo=" + mobileNo
+                        + "&action=approve";
+
+        String rejectUrl =
+                backendUrl
+                        + "/api/employee-meetings/participant-response/action"
+                        + "?meetingId=" + meetingId
+                        + "&mobileNo=" + mobileNo
+                        + "&action=reject";
+
+        String html =
+                buildParticipantInviteHtml(
+                        participantName,
+                        organizerName,
+                        organizerDesignation,
+                        date,
+                        time,
+                        purpose,
+                        venue,
+                        approveUrl,
+                        rejectUrl
+                );
+
+        sendEmail(
+                to,
+                "Meeting Scheduling Request",
+                html
+        );
+    }
+
+
+    /**
+     * Backward-compatible overload for the previous Resend implementation.
+     *
+     * If some existing code is still calling the token-based version,
+     * this method will continue to work.
      */
     public void sendParticipantInviteEmail(
             String to,
@@ -467,6 +544,116 @@ public class ResendEmailService {
 
 
     // ============================================================
+    // PARTICIPANT INVITATION HTML
+    // ============================================================
+
+    private String buildParticipantInviteHtml(
+            String participantName,
+            String organizerName,
+            String organizerDesignation,
+            String date,
+            String time,
+            String purpose,
+            String venue,
+            String approveUrl,
+            String rejectUrl) {
+
+        String chairedBy =
+                organizerName
+                        + (organizerDesignation != null
+                        && !organizerDesignation.isBlank()
+                        ? " (" + organizerDesignation + ")"
+                        : "");
+
+        return """
+            <!DOCTYPE html>
+            <html>
+            <body style="margin:0; padding:0; background-color:#f4f4f7; font-family:'Segoe UI', Arial, sans-serif;">
+
+            <p>Dear <b>%s</b>,</p>
+
+            <p>
+                You have been requested to attend a meeting.
+                Please find the details below:
+            </p>
+
+            <p>
+                <b>Hosted by:</b> %s<br>
+                <b>Chaired by:</b> %s<br>
+                <b>Venue:</b> %s<br>
+                <b>Date:</b> %s<br>
+                <b>Time:</b> %s<br>
+                <b>Purpose:</b> %s
+            </p>
+
+            <p>Please confirm your availability:</p>
+
+            <table cellpadding="0" cellspacing="0" style="margin-top:12px;">
+            <tr>
+
+            <td style="padding-right:12px;">
+
+            <a href="%s"
+               style="display:inline-block;
+                      background:#16a34a;
+                      color:#ffffff;
+                      font-weight:600;
+                      text-decoration:none;
+                      padding:12px 28px;
+                      border-radius:6px;">
+
+                ✓ Available
+
+            </a>
+
+            </td>
+
+            <td>
+
+            <a href="%s"
+               style="display:inline-block;
+                      background:#dc2626;
+                      color:#ffffff;
+                      font-weight:600;
+                      text-decoration:none;
+                      padding:12px 28px;
+                      border-radius:6px;">
+
+                ✕ Not Available
+
+            </a>
+
+            </td>
+
+            </tr>
+            </table>
+
+            <p style="margin-top:24px;">
+                Regards,<br>
+                <b>Visitor Management System</b>
+            </p>
+
+            </body>
+            </html>
+            """.formatted(
+                participantName,
+                organizerName,
+                chairedBy,
+                venue != null && !venue.isBlank()
+                        ? venue
+                        : "-",
+                date,
+                time,
+                purpose != null && !purpose.isBlank()
+                        ? purpose
+                        : "-",
+                approveUrl,
+                rejectUrl
+        );
+    }
+
+
+    // ============================================================
     // HOST APPROVED EMAIL / GATEPASS
     // ============================================================
 
@@ -483,14 +670,15 @@ public class ResendEmailService {
             String passNo,
             String passLink) {
 
-        String html = buildHostApprovedHtml(
-                hostName,
-                visitorName,
-                date,
-                time,
-                passNo,
-                passLink
-        );
+        String html =
+                buildHostApprovedHtml(
+                        hostName,
+                        visitorName,
+                        date,
+                        time,
+                        passNo,
+                        passLink
+                );
 
         sendEmail(
                 hostEmail,

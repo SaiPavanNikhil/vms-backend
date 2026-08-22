@@ -12,6 +12,8 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vms_backend.vms_backend.dto.VisitorCheckInRequest;
+import com.vms_backend.vms_backend.dto.VisitorCheckInResponse;
 import com.vms_backend.vms_backend.dto.VisitorRequest;
 import com.vms_backend.vms_backend.entity.VisitorHistory;
 import com.vms_backend.vms_backend.entity.Visitors;
@@ -25,12 +27,18 @@ public class VisitorService {
 
     private final VisitorRepository visitorRepo;
     private final VisitorHistoryRepository historyRepo;
+    private final VisitorCheckInService visitorCheckInService;
 
-    public VisitorService(VisitorRepository visitorRepo, VisitorHistoryRepository historyRepo) {
+    public VisitorService(
+            VisitorRepository visitorRepo,
+            VisitorHistoryRepository historyRepo,
+            VisitorCheckInService visitorCheckInService) {
+
         this.visitorRepo = visitorRepo;
         this.historyRepo = historyRepo;
+        this.visitorCheckInService = visitorCheckInService;
     }
-
+    
     private String savePhoto(String mobileNo, String dataUrl) {
         if (dataUrl == null || dataUrl.isBlank()) return null;
 
@@ -73,6 +81,7 @@ public class VisitorService {
         v.setModeOfVisit(req.getModeOfVisit());
         v.setRegistrationDate(LocalDate.now());
         v.setPurposeOfVisit(req.getPurposeOfVisit());
+        v.setDescriptionOfVisit(req.getDescriptionOfVisit());
          
         System.out.println("========== CREATE VISITOR ==========");
         System.out.println("Mobile No: " + req.getMobileNo());
@@ -124,6 +133,7 @@ public class VisitorService {
         h.setEmail(existing.getEmail());
         h.setPhoto(existing.getPhoto());
         h.setRegistrationDate(existing.getRegistrationDate());
+        h.setRegistrationDate(existing.getRegistrationDate());
         h.setChangeDate(LocalDate.now());
         historyRepo.save(h);
 
@@ -135,6 +145,8 @@ public class VisitorService {
         existing.setOrganisation(req.getOrganisation());
         existing.setEmail(req.getEmail());
         existing.setModeOfVisit(req.getModeOfVisit());
+        existing.setPurposeOfVisit(req.getPurposeOfVisit());
+        existing.setDescriptionOfVisit(req.getDescriptionOfVisit());        
         
         if (req.getPhotoDataUrl() != null && !req.getPhotoDataUrl().isBlank()) {
             existing.setPhoto(savePhoto(mobileNo, req.getPhotoDataUrl()));
@@ -146,6 +158,14 @@ public class VisitorService {
         return visitorRepo.findById(mobileNo)
                 .orElseThrow(() -> new NoSuchElementException("Visitor not found: " + mobileNo));
     }
+    
+
+	@Transactional
+	public VisitorCheckInResponse checkInOut(
+	        VisitorCheckInRequest request) {
+	
+	    return visitorCheckInService.checkInOut(request);
+	}
 
     public List<Visitors> getAllVisitors() {
         return visitorRepo.findAll();
